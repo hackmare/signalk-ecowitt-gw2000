@@ -396,7 +396,7 @@ module.exports = function (app) {
 
   // ── Plugin lifecycle ──────────────────────────────────────────────────────
 
-  plugin.start = function (opts) {
+  plugin.start = function (opts, restartPlugin) {
     // Guard against double-start (plugin reload without stop)
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
     stopped = false;
