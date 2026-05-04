@@ -21,14 +21,19 @@
     "test:coverage": "jest --coverage"
   },
   "devDependencies": {
-    "jest": "^29.0.0"
+    "babel-plugin-istanbul": "^8.0.0",
+    "jest": "^29.7.0",
+    "test-exclude": "^8.0.0"
   },
   "jest": {
     "testEnvironment": "node",
-    "testMatch": ["**/test/**/*.test.js"],
-    "collectCoverageFrom": ["index.js"]
+    "testMatch": [
+      "**/test/**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "index.js"
+    ]
   },
-  "dependencies": {},
   "author": "Morgane Oger <m.oger@roitsystems.ca>",
   "license": "MIT",
   "repository": {
