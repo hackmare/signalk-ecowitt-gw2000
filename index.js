@@ -39,6 +39,105 @@
 
 const http = require('http');
 
+// ── Utility functions (exported for testing) ──────────────────────────────────
+
+const DEG_TO_RAD = (d) => d * Math.PI / 180;
+
+function windToMs(val, unit) {
+  switch ((unit || '').toLowerCase().trim()) {
+    case 'km/h':              return val / 3.6;
+    case 'mph':               return val * 0.44704;
+    case 'knots': case 'kn': return val * 0.514444;
+    default:                  return val; // m/s — no conversion needed
+  }
+}
+
+function tempToK(val, unit) {
+  if ((unit || '').trim() === '°F' || (unit || '').trim() === 'F') return (val - 32) * 5 / 9 + 273.15;
+  return val + 273.15; // °C default
+}
+
+function pressureToPa(val, unit) {
+  switch ((unit || '').toLowerCase().trim()) {
+    case 'kpa':  return val * 1000;
+    case 'inhg': return val * 3386.39;
+    case 'mmhg': return val * 133.322;
+    default:     return val * 100; // hPa default
+  }
+}
+
+function rainToM(val, unit) {
+  if ((unit || '').toLowerCase().trim() === 'in') return val * 0.0254;
+  return val / 1000; // mm → m default
+}
+
+function rainRateToMs(val, unit) {
+  const u = (unit || '').toLowerCase().trim();
+  if (u === 'in/h' || u === 'in/hr') return val * 0.0254 / 3600;
+  return val / 3600000; // mm/hr → m/s default
+}
+
+function parseValAndUnit(item) {
+  if (item.unit !== undefined) {
+    return { val: parseFloat(item.val), unit: String(item.unit).trim() };
+  }
+  // Extract trailing unit from val string: "6.22 knots" → {val:6.22, unit:"knots"}
+  const m = String(item.val).trim().match(/^(-?[\d.]+)\s*(.*)$/);
+  if (m) return { val: parseFloat(m[1]), unit: m[2].trim() };
+  return { val: parseFloat(item.val), unit: '' };
+}
+
+function buildCommonMap(data) {
+  const map = {};
+  const units = {};
+  const list = data?.common_list ?? [];
+  for (const item of list) {
+    if (item.id === undefined || item.val === undefined) continue;
+    const { val, unit } = parseValAndUnit(item);
+    // Filter NaN — GW2000B sends "--" for missing sensors
+    if (!isNaN(val)) { map[item.id] = val; units[item.id] = unit; }
+  }
+  return { map, units };
+}
+
+function buildPiezoMap(data) {
+  const map = {};
+  const units = {};
+  const raw = data?.piezoRain;
+  if (!raw) return { map, units };
+
+  // Handle both array format (observed) and flat-object format (backwards compat)
+  const list = Array.isArray(raw)
+    ? raw
+    : Object.entries(raw).map(([id, val]) => ({ id, val }));
+
+  for (const item of list) {
+    if (item.id !== undefined && item.val !== undefined) {
+      const { val, unit } = parseValAndUnit(item);
+      if (!isNaN(val)) { map[item.id] = val; units[item.id] = unit; }
+    }
+    // Extract extra scalar fields on this entry (ws90cap_volt, voltage, etc.)
+    for (const [k, v] of Object.entries(item)) {
+      if (k === 'id' || k === 'val') continue;
+      const n = parseFloat(v);
+      if (!isNaN(n)) { map[k] = n; units[k] = ''; }
+    }
+  }
+  return { map, units };
+}
+
+const utils = {
+  DEG_TO_RAD,
+  windToMs,
+  tempToK,
+  pressureToPa,
+  rainToM,
+  rainRateToMs,
+  parseValAndUnit,
+  buildCommonMap,
+  buildPiezoMap,
+};
+
 module.exports = function (app) {
   const plugin = {};
 
@@ -111,49 +210,6 @@ module.exports = function (app) {
     { path: 'electrical.batteries.ws90backup.voltage',  value: { units: 'V',    description: 'WS90 backup battery voltage' } },
   ];
 
-  // ── Unit conversions ──────────────────────────────────────────────────────
-
-  const DEG_TO_RAD = (d) => d * Math.PI / 180;
-
-  // Convert wind speed to m/s (SignalK standard)
-  function windToMs(val, unit) {
-    switch ((unit || '').toLowerCase().trim()) {
-      case 'km/h':              return val / 3.6;
-      case 'mph':               return val * 0.44704;
-      case 'knots': case 'kn': return val * 0.514444;
-      default:                  return val; // m/s — no conversion needed
-    }
-  }
-
-  // Convert temperature to Kelvin (SignalK standard)
-  function tempToK(val, unit) {
-    if ((unit || '').trim() === '°F' || (unit || '').trim() === 'F') return (val - 32) * 5 / 9 + 273.15;
-    return val + 273.15; // °C default
-  }
-
-  // Convert pressure to Pa (SignalK standard)
-  function pressureToPa(val, unit) {
-    switch ((unit || '').toLowerCase().trim()) {
-      case 'kpa':  return val * 1000;
-      case 'inhg': return val * 3386.39;
-      case 'mmhg': return val * 133.322;
-      default:     return val * 100; // hPa default
-    }
-  }
-
-  // Convert rain depth to m (SignalK standard)
-  function rainToM(val, unit) {
-    if ((unit || '').toLowerCase().trim() === 'in') return val * 0.0254;
-    return val / 1000; // mm → m default
-  }
-
-  // Convert rain rate to m/s (SignalK standard)
-  function rainRateToMs(val, unit) {
-    const u = (unit || '').toLowerCase().trim();
-    if (u === 'in/h' || u === 'in/hr') return val * 0.0254 / 3600;
-    return val / 3600000; // mm/hr → m/s default
-  }
-
   // ── HTTP polling ──────────────────────────────────────────────────────────
 
   function fetchLiveData(options) {
@@ -188,62 +244,6 @@ module.exports = function (app) {
       req.on('error', reject);
       req.on('timeout', () => { req.destroy(); reject(new Error('Request timed out')); });
     });
-  }
-
-  // ── Field extraction helpers ──────────────────────────────────────────────
-
-  // GW2000B mixes two formats: {id, val, unit} and {id, val:"6.22 knots"}.
-  // This extracts a numeric value and unit string from either form.
-  function parseValAndUnit(item) {
-    if (item.unit !== undefined) {
-      return { val: parseFloat(item.val), unit: String(item.unit).trim() };
-    }
-    // Extract trailing unit from val string: "6.22 knots" → {val:6.22, unit:"knots"}
-    const m = String(item.val).trim().match(/^(-?[\d.]+)\s*(.*)$/);
-    if (m) return { val: parseFloat(m[1]), unit: m[2].trim() };
-    return { val: parseFloat(item.val), unit: '' };
-  }
-
-  // common_list is an array of {id, val, [unit]} — returns { map, units }
-  function buildCommonMap(data) {
-    const map = {};
-    const units = {};
-    const list = data?.common_list ?? [];
-    for (const item of list) {
-      if (item.id === undefined || item.val === undefined) continue;
-      const { val, unit } = parseValAndUnit(item);
-      // Filter NaN — GW2000B sends "--" for missing sensors
-      if (!isNaN(val)) { map[item.id] = val; units[item.id] = unit; }
-    }
-    return { map, units };
-  }
-
-  // piezoRain is an array of {id, val, ...extraFields}
-  // Extra scalar fields (ws90cap_volt, voltage, battery) are also extracted.
-  function buildPiezoMap(data) {
-    const map = {};
-    const units = {};
-    const raw = data?.piezoRain;
-    if (!raw) return { map, units };
-
-    // Handle both array format (observed) and flat-object format (backwards compat)
-    const list = Array.isArray(raw)
-      ? raw
-      : Object.entries(raw).map(([id, val]) => ({ id, val }));
-
-    for (const item of list) {
-      if (item.id !== undefined && item.val !== undefined) {
-        const { val, unit } = parseValAndUnit(item);
-        if (!isNaN(val)) { map[item.id] = val; units[item.id] = unit; }
-      }
-      // Extract extra scalar fields on this entry (ws90cap_volt, voltage, etc.)
-      for (const [k, v] of Object.entries(item)) {
-        if (k === 'id' || k === 'val') continue;
-        const n = parseFloat(v);
-        if (!isNaN(n)) { map[k] = n; units[k] = ''; }
-      }
-    }
-    return { map, units };
   }
 
   // ── Data parsing and SignalK publishing ───────────────────────────────────
@@ -296,8 +296,10 @@ module.exports = function (app) {
     if (common['0x17'] !== undefined)
       values.push({ path: 'environment.outside.lightningStrikeCount', value: common['0x17'] });
 
-    if (common['0x6D'] !== undefined)
-      values.push({ path: 'environment.outside.lightningDistance', value: common['0x6D'] * 1000 }); // km→m
+    if (common['0x6D'] !== undefined) {
+      // GW2000B API returns distance in km; convert to m for Signal K standard
+      values.push({ path: 'environment.outside.lightningDistance', value: common['0x6D'] * 1000 });
+    }
 
     // ── Rain (WS90 piezo sensor) ─────────────────────────────────────────
     // Rain rate is in 0x0E ("0.0 mm/Hr"), not rrain_piezo
@@ -335,11 +337,15 @@ module.exports = function (app) {
 
       if (wh25.abs !== undefined) {
         const { val, unit } = parseValAndUnit({ val: wh25.abs });
-        values.push({ path: 'environment.outside.pressure',         value: pressureToPa(val, unit) });
+        if (!isNaN(val)) {
+          values.push({ path: 'environment.outside.pressure',         value: pressureToPa(val, unit) });
+        }
       }
       if (wh25.rel !== undefined) {
         const { val, unit } = parseValAndUnit({ val: wh25.rel });
-        values.push({ path: 'environment.outside.pressureSeaLevel', value: pressureToPa(val, unit) });
+        if (!isNaN(val)) {
+          values.push({ path: 'environment.outside.pressureSeaLevel', value: pressureToPa(val, unit) });
+        }
       }
     }
 
@@ -404,7 +410,7 @@ module.exports = function (app) {
     const options = {
       host:         opts?.host         || '192.168.0.35',
       port:         opts?.port         || 80,
-      pollInterval: opts?.pollInterval || 16,
+      pollInterval: opts?.pollInterval || 60,
       windAsTrue:   opts?.windAsTrue   !== false,
     };
 
@@ -427,3 +433,5 @@ module.exports = function (app) {
 
   return plugin;
 };
+
+module.exports.utils = utils;

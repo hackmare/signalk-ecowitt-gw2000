@@ -16,7 +16,17 @@
   },
   "main": "index.js",
   "scripts": {
-    "test": "echo \"No tests yet\""
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": ["**/test/**/*.test.js"],
+    "collectCoverageFrom": ["index.js"]
   },
   "dependencies": {},
   "author": "Morgane Oger <m.oger@roitsystems.ca>",
