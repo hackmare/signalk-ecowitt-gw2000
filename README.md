@@ -37,6 +37,19 @@ npm install
 
 Restart the Signal K server after installation.
 
+### Installation Notes
+
+During `npm install` you may see deprecation warnings about `glob@7.2.3` and `inflight@1.0.6`:
+
+```text
+npm warn deprecated glob@7.2.3: Old versions of glob are not supported...
+npm warn deprecated inflight@1.0.6: This module is not supported...
+```
+
+**These warnings are safe to ignore.** They come from Jest's internal dependencies (used only for development/testing) and do not affect the plugin at runtime. Running `npm audit` will show **0 vulnerabilities**.
+
+These warnings are common across the Node.js ecosystem and will be resolved when Jest updates its dependencies.
+
 ## Configuration
 
 Open Signal K admin → **Plugin Config** → **Ecowitt GW2000B + WS90 Weather Station**.
