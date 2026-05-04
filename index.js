@@ -415,6 +415,7 @@ module.exports = function (app) {
     };
 
     app.debug(`Starting — polling http://${options.host}:${options.port}/get_livedata_info every ${options.pollInterval}s`);
+    app.debug('Note: npm deprecation warnings during install (glob, inflight) are harmless and from Jest dependencies');
     app.setPluginStatus(`Connecting to ${options.host}…`);
 
     // Publish metadata once so SignalK knows units/descriptions for all paths
