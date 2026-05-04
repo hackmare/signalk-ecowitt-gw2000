@@ -91,6 +91,33 @@ If this returns JSON, the network path is working. Check the Signal K server log
 
 Not all fields are present on every firmware version. The plugin only publishes fields that are present and valid in the response — missing fields are silently skipped.
 
+## Development & Testing
+
+This plugin includes a comprehensive Jest test suite with 74 tests covering:
+
+- Unit conversion functions (Celsius/Fahrenheit, wind speeds, pressure units, rain depth)
+- Value/unit parsing edge cases and malformed input
+- Data mapping and structure handling
+- HTTP error scenarios
+
+### Running Tests
+
+```bash
+# Install dependencies
+npm install
+
+# Run all tests
+npm test
+
+# Watch mode (re-run on file changes)
+npm run test:watch
+
+# Coverage report
+npm run test:coverage
+```
+
+For development setup and architecture details, see [CLAUDE.md](./CLAUDE.md).
+
 ## License
 
 MIT
