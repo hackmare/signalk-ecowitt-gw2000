@@ -1,6 +1,6 @@
 {
   "name": "signalk-ecowitt-gw2000",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "SignalK plugin for Ecowitt GW2000B with WS90 all-in-one weather station",
   "keywords": [
     "signalk-node-server-plugin",
@@ -9,7 +9,8 @@
     "ecowitt",
     "gw2000",
     "ws90",
-    "weather"
+    "weather",
+    "signalk-category-instruments"
   ],
   "signalk": {
     "displayName": "Ecowitt GW2000B + WS90 Weather Station"
